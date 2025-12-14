@@ -1,20 +1,19 @@
-# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-.env
+env/
 venv/
+.env
+.venv
+build/
+dist/
 *.egg-info/
 .pytest_cache/
-
-# VS Code
-.vscode/*.code-workspace
-.vscode/*.log
-.vscode/*.bak
-
-# Database backups
+.vscode/
+.idea/
 db_backups/
 *.sql
-*.sql.gz
+*.log
+.DS_Store
