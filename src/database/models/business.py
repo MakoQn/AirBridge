@@ -19,12 +19,17 @@ class Flight(Base):
     flight_number = Column(String, unique=True, nullable=False)
     departure_datetime = Column(DateTime, nullable=False)
     arrival_datetime = Column(DateTime, nullable=False)
+    base_price = Column(DECIMAL(10, 2), nullable=False, default=0.0)
+    status = Column(String, default="Check-in")
+    
     departure_airport_id = Column(Integer, ForeignKey("airport.id"), nullable=False)
     arrival_airport_id = Column(Integer, ForeignKey("airport.id"), nullable=False)
     organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False)
     aircraft_id = Column(Integer, ForeignKey("aircraft.id"), nullable=False)
 
     tickets = relationship("Ticket", back_populates="flight")
+    organization = relationship("Organization")
+    aircraft = relationship("src.database.models.fleet.Aircraft")
 
 class Passenger(Base):
     __tablename__ = "passenger"
@@ -45,11 +50,16 @@ class Ticket(Base):
     ticket_number = Column(String, unique=True, nullable=False)
     price = Column(DECIMAL(10, 2), nullable=False)
     booking_datetime = Column(DateTime, server_default=func.now())
+    
     passenger_id = Column(Integer, ForeignKey("passenger.id"), nullable=False)
     flight_id = Column(Integer, ForeignKey("flight.id"), nullable=False)
     seat_id = Column(Integer, ForeignKey("seat.id"), nullable=True)
+    buyer_id = Column(Integer, ForeignKey("app_user.id"), nullable=True)
 
     flight = relationship("Flight", back_populates="tickets")
+    passenger = relationship("Passenger")
+    buyer = relationship("src.database.models.auth.AppUser")
+    
     __table_args__ = (UniqueConstraint('flight_id', 'seat_id', name='uq_flight_seat_ticket'),)
 
 class CargoType(Base):
@@ -60,7 +70,7 @@ class CargoType(Base):
 
 class TransportFeature(Base):
     __tablename__ = "transport_feature"
-    
+
     id = Column(Integer, primary_key=True)
     feature_name = Column(String, unique=True, nullable=False)
     description = Column(String)

@@ -1,5 +1,5 @@
 import bcrypt
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from src.database.models.base import Base
 
@@ -19,6 +19,8 @@ class AppUser(Base):
     phone_number = Column(String)
     password_hash = Column(String, nullable=False)
     avatar_url = Column(String, nullable=True)
+    is_superuser = Column(Boolean, default=False)
+    is_blocked = Column(Boolean, default=False)
 
     roles = relationship("Role", secondary="user_role")
 
