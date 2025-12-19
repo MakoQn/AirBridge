@@ -2,37 +2,32 @@ from src.database.db_connection import SessionLocal
 from src.database.models.auth import Role, AppUser
 import bcrypt
 
-def init_roles_and_admin():
+def init_system():
     session = SessionLocal()
     try:
         roles = ["Administrator", "Dispatcher", "Client"]
         for r_name in roles:
-            existing = session.query(Role).filter_by(role_name=r_name).first()
-            if not existing:
-                new_role = Role(role_name=r_name, role_description=f"Role for {r_name}")
-                session.add(new_role)
-        
+            if not session.query(Role).filter_by(role_name=r_name).first():
+                session.add(Role(role_name=r_name, role_description=f"Role for {r_name}"))
         session.commit()
 
-        admin_user = session.query(AppUser).filter_by(username="admin").first()
-        if not admin_user:
-            admin_role = session.query(Role).filter_by(role_name="Administrator").first()
-            password_bytes = "admin123".encode('utf-8')
+        if not session.query(AppUser).filter_by(username="admin").first():
+            pwd = "admin".encode('utf-8')
             salt = bcrypt.gensalt()
-            hashed = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+            hashed = bcrypt.hashpw(pwd, salt).decode('utf-8')
 
-            new_admin = AppUser(
-                username="admin",
-                email="admin@airbridge.loc",
-                password_hash=hashed
+            superuser = AppUser(
+                username="admin", 
+                email="root@system.loc", 
+                password_hash=hashed,
+                is_superuser=True
             )
-            new_admin.roles.append(admin_role)
-            session.add(new_admin)
+            session.add(superuser)
             session.commit()
-            print("Admin user created")
+            print("Superuser created (admin/admin)")
         else:
-            print("Admin user already exists")
-            
+            print("Superuser exists")
+
     except Exception as e:
         print(f"Error: {e}")
         session.rollback()
@@ -40,4 +35,4 @@ def init_roles_and_admin():
         session.close()
 
 if __name__ == "__main__":
-    init_roles_and_admin()
+    init_system()
