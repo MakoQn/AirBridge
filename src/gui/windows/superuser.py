@@ -39,6 +39,7 @@ class SuperuserWindow(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSortingEnabled(True)
         
         layout.addWidget(self.table)
         
@@ -62,17 +63,25 @@ class SuperuserWindow(QWidget):
         self.load_users()
 
     def load_users(self):
+        self.table.setSortingEnabled(False)
         session = SessionLocal()
-        users = session.query(AppUser).filter(AppUser.is_superuser == False).all()
-        self.table.setRowCount(len(users))
-        for i, u in enumerate(users):
-            role = u.roles[0].role_name if u.roles else "None"
-            status = "Blocked" if u.is_blocked else "Active"
-            self.table.setItem(i, 0, QTableWidgetItem(str(u.id)))
-            self.table.setItem(i, 1, QTableWidgetItem(u.username))
-            self.table.setItem(i, 2, QTableWidgetItem(role))
-            self.table.setItem(i, 3, QTableWidgetItem(status))
-        session.close()
+        try:
+            users = session.query(AppUser).filter(AppUser.is_superuser == False).order_by(AppUser.id).all()
+            self.table.setRowCount(len(users))
+            for i, u in enumerate(users):
+                role = u.roles[0].role_name if u.roles else "None"
+                status = "Blocked" if u.is_blocked else "Active"
+                
+                item_id = QTableWidgetItem()
+                item_id.setData(0, u.id)
+                
+                self.table.setItem(i, 0, item_id)
+                self.table.setItem(i, 1, QTableWidgetItem(u.username))
+                self.table.setItem(i, 2, QTableWidgetItem(role))
+                self.table.setItem(i, 3, QTableWidgetItem(status))
+        finally:
+            session.close()
+            self.table.setSortingEnabled(True)
 
     def create_staff(self):
         d = CreateStaffDialog()
