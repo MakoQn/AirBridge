@@ -5,7 +5,6 @@ from sqlalchemy import func
 from src.database.db_connection import SessionLocal
 from src.database.models.business import Ticket, Flight, Organization
 
-
 class AnalyticsService:
     def get_airline_revenue_stats(self):
         session = SessionLocal()
@@ -71,6 +70,28 @@ class AnalyticsService:
             return os.path.abspath(filename)
         except Exception as e:
             print(f"Export error: {e}")
+            return None
+        finally:
+            session.close()
+
+    def export_flight_passengers_csv(self, flight_id, filename="flight_passengers.csv"):
+        session = SessionLocal()
+        try:
+            tickets = session.query(Ticket).filter(Ticket.flight_id == flight_id).all()
+            if not tickets: return None
+            
+            with open(filename, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(["Passenger Name", "Passport", "Buyer Username"])
+                for t in tickets:
+                    buyer = t.buyer.username if t.buyer else "N/A"
+                    writer.writerow([
+                        f"{t.passenger.last_name} {t.passenger.first_name}",
+                        t.passenger.passport_series_number,
+                        buyer
+                    ])
+            return os.path.abspath(filename)
+        except Exception:
             return None
         finally:
             session.close()
