@@ -16,7 +16,7 @@ class Config:
     MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME", "avia-storage")
     MINIO_SECURE = os.environ.get("MINIO_SECURE", "false").lower() == "true"
 
-    SUPERUSER_PASSWORD = os.environ.get("SUPERUSER_PASSWORD", "admin")
+    SUPERUSER_PASSWORD = os.environ["SUPERUSER_PASSWORD"]
     
     @property
     def DATABASE_URL(self):
