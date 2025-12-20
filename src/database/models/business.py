@@ -20,7 +20,8 @@ class Flight(Base):
     departure_datetime = Column(DateTime, nullable=False)
     arrival_datetime = Column(DateTime, nullable=False)
     base_price = Column(DECIMAL(10, 2), nullable=False, default=0.0)
-    status = Column(String, default="Check-in")
+    status = Column(String, default="Registration")
+    max_tickets = Column(Integer, nullable=False, default=100)
     
     departure_airport_id = Column(Integer, ForeignKey("airport.id"), nullable=False)
     arrival_airport_id = Column(Integer, ForeignKey("airport.id"), nullable=False)
@@ -30,6 +31,8 @@ class Flight(Base):
     tickets = relationship("Ticket", back_populates="flight")
     organization = relationship("Organization")
     aircraft = relationship("src.database.models.fleet.Aircraft")
+    departure_airport = relationship("src.database.models.geo.Airport", foreign_keys=[departure_airport_id])
+    arrival_airport = relationship("src.database.models.geo.Airport", foreign_keys=[arrival_airport_id])
 
 class Passenger(Base):
     __tablename__ = "passenger"

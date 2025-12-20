@@ -1,8 +1,8 @@
-"""Initial schema
+"""Initial database structure
 
-Revision ID: 4608a0adf195
+Revision ID: 5be65e3a5f04
 Revises: 
-Create Date: 2025-12-15 19:47:05.720063
+Create Date: 2025-12-20 13:42:40.253454
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4608a0adf195'
+revision: str = '5be65e3a5f04'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,6 +36,8 @@ def upgrade() -> None:
     sa.Column('phone_number', sa.String(), nullable=True),
     sa.Column('password_hash', sa.String(), nullable=False),
     sa.Column('avatar_url', sa.String(), nullable=True),
+    sa.Column('is_superuser', sa.Boolean(), nullable=True),
+    sa.Column('is_blocked', sa.Boolean(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('username')
@@ -53,6 +55,16 @@ def upgrade() -> None:
     sa.UniqueConstraint('country_name')
     )
     op.create_index(op.f('ix_country_id'), 'country', ['id'], unique=False)
+    op.create_table('flight_details_view',
+    sa.Column('flight_id', sa.Integer(), nullable=False),
+    sa.Column('flight_number', sa.String(), nullable=True),
+    sa.Column('departure_city', sa.String(), nullable=True),
+    sa.Column('arrival_city', sa.String(), nullable=True),
+    sa.Column('airline_name', sa.String(), nullable=True),
+    sa.Column('departure_datetime', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('flight_id'),
+    info={'is_view': True}
+    )
     op.create_table('organization',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('organization_name', sa.String(), nullable=False),
@@ -141,6 +153,8 @@ def upgrade() -> None:
     sa.Column('flight_number', sa.String(), nullable=False),
     sa.Column('departure_datetime', sa.DateTime(), nullable=False),
     sa.Column('arrival_datetime', sa.DateTime(), nullable=False),
+    sa.Column('base_price', sa.DECIMAL(precision=10, scale=2), nullable=False),
+    sa.Column('status', sa.String(), nullable=True),
     sa.Column('departure_airport_id', sa.Integer(), nullable=False),
     sa.Column('arrival_airport_id', sa.Integer(), nullable=False),
     sa.Column('organization_id', sa.Integer(), nullable=False),
@@ -173,6 +187,8 @@ def upgrade() -> None:
     sa.Column('passenger_id', sa.Integer(), nullable=False),
     sa.Column('flight_id', sa.Integer(), nullable=False),
     sa.Column('seat_id', sa.Integer(), nullable=True),
+    sa.Column('buyer_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['buyer_id'], ['app_user.id'], ),
     sa.ForeignKeyConstraint(['flight_id'], ['flight.id'], ),
     sa.ForeignKeyConstraint(['passenger_id'], ['passenger.id'], ),
     sa.ForeignKeyConstraint(['seat_id'], ['seat.id'], ),
@@ -200,6 +216,7 @@ def downgrade() -> None:
     op.drop_table('role')
     op.drop_table('passenger')
     op.drop_table('organization')
+    op.drop_table('flight_details_view')
     op.drop_index(op.f('ix_country_id'), table_name='country')
     op.drop_table('country')
     op.drop_table('cargo_type')
