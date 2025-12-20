@@ -32,8 +32,12 @@ def create_backup():
         minio = MinioService()
         minio.upload_file(filepath, f"backups/{filename}")
         
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            
     except Exception as e:
         print(e)
+        raise e
 
 if __name__ == "__main__":
     create_backup()

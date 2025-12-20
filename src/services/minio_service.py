@@ -1,5 +1,7 @@
+import json
 from minio import Minio
 from src.utils.config import Config
+
 
 class MinioService:
     def __init__(self):
@@ -14,8 +16,25 @@ class MinioService:
         self._ensure_bucket()
 
     def _ensure_bucket(self):
-        if not self.client.bucket_exists(self.bucket):
+        found = self.client.bucket_exists(self.bucket)
+        if not found:
             self.client.make_bucket(self.bucket)
+        
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{self.bucket}/*"]
+                }
+            ]
+        }
+        try:
+            self.client.set_bucket_policy(self.bucket, json.dumps(policy))
+        except Exception:
+            pass
 
     def upload_file(self, file_path, object_name):
         try:
