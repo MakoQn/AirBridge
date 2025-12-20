@@ -37,6 +37,6 @@ class AdminWindow(QTabWidget):
 
     def load_stats(self):
         session = SessionLocal()
-        cnt = session.query(AppUser).count()
-        self.lbl_stats.setText(f"Total Users: {cnt}")
+        cnt = session.query(AppUser).filter(AppUser.is_superuser == False).count()
+        self.lbl_stats.setText(f"Total Users (Staff + Clients): {cnt}")
         session.close()

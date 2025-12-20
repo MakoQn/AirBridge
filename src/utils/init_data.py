@@ -1,6 +1,8 @@
 from src.database.db_connection import SessionLocal
 from src.database.models.auth import Role, AppUser
+from src.utils.config import Config
 import bcrypt
+
 
 def init_system():
     session = SessionLocal()
@@ -12,7 +14,7 @@ def init_system():
         session.commit()
 
         if not session.query(AppUser).filter_by(username="admin").first():
-            pwd = "admin".encode('utf-8')
+            pwd = Config.SUPERUSER_PASSWORD.encode('utf-8')
             salt = bcrypt.gensalt()
             hashed = bcrypt.hashpw(pwd, salt).decode('utf-8')
 
@@ -24,7 +26,7 @@ def init_system():
             )
             session.add(superuser)
             session.commit()
-            print("Superuser created (admin/admin)")
+            print("Superuser created")
         else:
             print("Superuser exists")
 
@@ -33,6 +35,7 @@ def init_system():
         session.rollback()
     finally:
         session.close()
+
 
 if __name__ == "__main__":
     init_system()

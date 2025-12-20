@@ -1,4 +1,6 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QHeaderView, QMessageBox, QComboBox, QLineEdit, QDialog, QFormLayout
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, 
+                             QHBoxLayout, QHeaderView, QMessageBox, QComboBox, QLineEdit, QDialog, 
+                             QFormLayout, QAbstractItemView)
 from src.database.db_connection import SessionLocal
 from src.database.models.auth import AppUser, Role
 import bcrypt
@@ -33,6 +35,11 @@ class SuperuserWindow(QWidget):
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Username", "Role", "Status"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        
         layout.addWidget(self.table)
         
         h = QHBoxLayout()
