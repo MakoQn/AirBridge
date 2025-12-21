@@ -12,6 +12,7 @@ from src.database.db_connection import SessionLocal
 from src.database.models.fleet import Aircraft, AircraftType
 from src.database.models.business import Ticket, Flight, Organization
 from src.database.models.geo import Airport, City
+from src.database.models.reports import FlightDetailsView
 
 class DispatcherWindow(QWidget):
     def __init__(self):
@@ -297,43 +298,44 @@ class DispatcherWindow(QWidget):
 
     def load_flights_table(self):
         session = SessionLocal()
-        flights = session.query(Flight).all()
-        self.table_flights.setRowCount(len(flights))
-        for i, f in enumerate(flights):
-            sold = len(f.tickets)
+        views = session.query(FlightDetailsView).all()
+        
+        self.table_flights.setRowCount(len(views))
+        for i, v in enumerate(views):
+            sold = session.query(Ticket).filter(Ticket.flight_id == v.flight_id).count()
             
-            item_num = QTableWidgetItem(f.flight_number)
+            item_num = QTableWidgetItem(v.flight_number)
             item_num.setFlags(item_num.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 0, item_num)
             
-            item_dep = QTableWidgetItem(f.departure_airport.city.city_name)
+            item_dep = QTableWidgetItem(v.dep_city)
             item_dep.setFlags(item_dep.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 1, item_dep)
 
-            item_arr = QTableWidgetItem(f.arrival_airport.city.city_name)
+            item_arr = QTableWidgetItem(v.arr_city)
             item_arr.setFlags(item_arr.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 2, item_arr)
 
-            item_time = QTableWidgetItem(str(f.departure_datetime))
+            item_time = QTableWidgetItem(str(v.departure_datetime))
             item_time.setFlags(item_time.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 3, item_time)
 
-            item_plane = QTableWidgetItem(f.aircraft.registration_number)
+            item_plane = QTableWidgetItem(v.aircraft_reg)
             item_plane.setFlags(item_plane.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 4, item_plane)
 
-            item_price = QTableWidgetItem(str(f.base_price))
+            item_price = QTableWidgetItem(str(v.base_price))
             item_price.setFlags(item_price.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 5, item_price)
 
-            item_sold = QTableWidgetItem(f"{sold}/{f.max_tickets}")
+            item_sold = QTableWidgetItem(f"{sold}/{v.max_tickets}")
             item_sold.setFlags(item_sold.flags() ^ Qt.ItemFlag.ItemIsEditable)
             self.table_flights.setItem(i, 6, item_sold)
             
             combo = QComboBox()
             combo.addItems(["Registration", "Boarding", "Departed", "Delayed", "Arrived"])
-            combo.setCurrentText(f.status)
-            combo.currentTextChanged.connect(lambda text, fid=f.id: self.change_status(fid, text))
+            combo.setCurrentText(v.status)
+            combo.currentTextChanged.connect(lambda text, fid=v.flight_id: self.change_status(fid, text))
             self.table_flights.setCellWidget(i, 7, combo)
         session.close()
 
