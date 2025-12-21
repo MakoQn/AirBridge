@@ -31,12 +31,17 @@ class ClientWindow(QWidget):
         v = QVBoxLayout()
         
         h_filter = QHBoxLayout()
-        self.filter_from = QLineEdit(); self.filter_from.setPlaceholderText("From City")
-        self.filter_to = QLineEdit(); self.filter_to.setPlaceholderText("To City")
+        self.filter_from = QLineEdit()
+        self.filter_from.setPlaceholderText("From City")
+        self.filter_to = QLineEdit()
+        self.filter_to.setPlaceholderText("To City")
+        self.filter_date = QDateEdit()
+        self.filter_date.setDate(QDate.currentDate())
         btn_search = QPushButton("Search")
         btn_search.clicked.connect(self.search_flights)
         h_filter.addWidget(self.filter_from)
         h_filter.addWidget(self.filter_to)
+        h_filter.addWidget(self.filter_date)
         h_filter.addWidget(btn_search)
         v.addLayout(h_filter)
         
@@ -67,8 +72,10 @@ class ClientWindow(QWidget):
         g_det.setLayout(f_det)
         v.addWidget(g_det)
         
-        self.p_name = QLineEdit(); self.p_name.setPlaceholderText("Passenger Full Name")
-        self.p_doc = QLineEdit(); self.p_doc.setPlaceholderText("Passport Number")
+        self.p_name = QLineEdit()
+        self.p_name.setPlaceholderText("Passenger Full Name")
+        self.p_doc = QLineEdit()
+        self.p_doc.setPlaceholderText("Passport Number")
         btn_book = QPushButton("Buy Ticket")
         btn_book.clicked.connect(self.book)
         v.addWidget(self.p_name)
@@ -177,8 +184,8 @@ class ClientWindow(QWidget):
 
     def book(self):
         fid = self.cl_combo.currentData()
-        n = self.p_name.text()
-        d = self.p_doc.text()
+        n = self.p_name.text().strip()
+        d = self.p_doc.text().strip()
         if not fid or not n or not d: return
         
         session = SessionLocal()
@@ -190,8 +197,12 @@ class ClientWindow(QWidget):
 
             p = session.query(Passenger).filter_by(passport_series_number=d).first()
             if not p:
-                p = Passenger(first_name=n, last_name=n, passport_series_number=d)
-                session.add(p); session.flush()
+                parts = n.split()
+                fn = parts[0]
+                ln = " ".join(parts[1:]) if len(parts) > 1 else ""
+                p = Passenger(first_name=fn, last_name=ln, passport_series_number=d)
+                session.add(p)
+                session.flush()
             
             tn = f"T-{uuid.uuid4().hex[:8].upper()}"
             t = Ticket(ticket_number=tn, price=f.base_price, passenger_id=p.id, flight_id=fid, buyer_id=self.user_id)
@@ -210,12 +221,22 @@ class ClientWindow(QWidget):
         ts = session.query(Ticket).filter_by(buyer_id=self.user_id).all()
         self.table.setRowCount(len(ts))
         for i, t in enumerate(ts):
-            self.table.setItem(i, 0, QTableWidgetItem(t.ticket_number))
-            self.table.setItem(i, 1, QTableWidgetItem(t.flight.flight_number))
+            it_fl = QTableWidgetItem(t.ticket_number)
+            it_fl.setFlags(it_fl.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 0, it_fl)
+            
             route = f"{t.flight.departure_airport.city.city_name} -> {t.flight.arrival_airport.city.city_name}"
-            self.table.setItem(i, 2, QTableWidgetItem(route))
-            self.table.setItem(i, 3, QTableWidgetItem(str(t.flight.departure_datetime)))
-            self.table.setItem(i, 4, QTableWidgetItem(t.passenger.last_name))
+            it_rt = QTableWidgetItem(route)
+            it_rt.setFlags(it_rt.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 1, it_rt)
+            
+            it_tm = QTableWidgetItem(str(t.flight.departure_datetime))
+            it_tm.setFlags(it_tm.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 2, it_tm)
+            
+            it_ps = QTableWidgetItem(f"{t.passenger.first_name} {t.passenger.last_name}")
+            it_ps.setFlags(it_ps.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 3, it_ps)
         session.close()
 
     def update_profile(self):
@@ -226,15 +247,32 @@ class ClientWindow(QWidget):
         session = SessionLocal()
         try:
             u = session.get(AppUser, self.user_id)
-            if u_name:
-                if session.query(AppUser).filter_by(username=u_name).first():
+            changed = False
+            
+            if u_name and u.username != u_name:
+                if session.query(AppUser).filter(AppUser.username == u_name, AppUser.id != self.user_id).first():
                     QMessageBox.warning(self, "Error", "Username taken")
                     return
                 u.username = u_name
-            if e: u.email = e
-            if p: u.password_hash = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-            session.commit()
-            QMessageBox.information(self, "Success", "Profile updated")
+                changed = True
+            
+            if e and u.email != e:
+                if session.query(AppUser).filter(AppUser.email == e, AppUser.id != self.user_id).first():
+                    QMessageBox.warning(self, "Error", "Email taken")
+                    return
+                u.email = e
+                changed = True
+                
+            if p:
+                u.password_hash = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
+                changed = True
+            
+            if changed:
+                session.commit()
+                QMessageBox.information(self, "Success", "Profile updated")
+            else:
+                QMessageBox.information(self, "Info", "No changes made")
+                
         except Exception as err:
             session.rollback()
             QMessageBox.warning(self, "Error", str(err))

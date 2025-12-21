@@ -151,12 +151,17 @@ class DispatcherWindow(QWidget):
         btn_csv = QPushButton("Export to CSV")
         btn_csv.clicked.connect(self.export_passengers)
         
+        btn_ref = QPushButton("Refresh Flights List")
+        btn_ref.clicked.connect(self.update_report_combo)
+
         vbox.addWidget(QLabel("Select Flight:"))
         vbox.addWidget(self.rep_flight_combo)
+        vbox.addWidget(btn_ref)
         vbox.addWidget(self.table_pass)
         vbox.addWidget(btn_csv)
         tab.setLayout(vbox)
         tabs.addTab(tab, "5. Passenger Lists")
+        self.update_report_combo()
 
     def create_analytics_tab(self, tabs):
         tab = QWidget()
@@ -200,8 +205,7 @@ class DispatcherWindow(QWidget):
         except IntegrityError:
             session.rollback()
             QMessageBox.warning(self, "Error", "Already exists")
-        finally:
-            session.close()
+        finally: session.close()
 
     def load_aircraft_types(self):
         session = SessionLocal()
@@ -223,8 +227,7 @@ class DispatcherWindow(QWidget):
         if self.photo_path:
             try:
                 url = MinioService().upload_file(self.photo_path, f"aircrafts/{os.path.basename(self.photo_path)}")
-            except:
-                pass
+            except: pass
         session = SessionLocal()
         try:
             session.add(Aircraft(registration_number=reg, aircraft_type_id=self.type_combo.currentData(), photo_url=url))
@@ -234,8 +237,7 @@ class DispatcherWindow(QWidget):
         except IntegrityError:
             session.rollback()
             QMessageBox.warning(self, "Error", "Exists")
-        finally:
-            session.close()
+        finally: session.close()
 
     def load_airports(self):
         session = SessionLocal()
@@ -291,8 +293,7 @@ class DispatcherWindow(QWidget):
         except IntegrityError:
             session.rollback()
             QMessageBox.warning(self, "Error", "Flight number exists")
-        finally:
-            session.close()
+        finally: session.close()
 
     def load_flights_table(self):
         session = SessionLocal()
@@ -300,13 +301,34 @@ class DispatcherWindow(QWidget):
         self.table_flights.setRowCount(len(flights))
         for i, f in enumerate(flights):
             sold = len(f.tickets)
-            self.table_flights.setItem(i, 0, QTableWidgetItem(f.flight_number))
-            self.table_flights.setItem(i, 1, QTableWidgetItem(f.departure_airport.city.city_name))
-            self.table_flights.setItem(i, 2, QTableWidgetItem(f.arrival_airport.city.city_name))
-            self.table_flights.setItem(i, 3, QTableWidgetItem(str(f.departure_datetime)))
-            self.table_flights.setItem(i, 4, QTableWidgetItem(f.aircraft.registration_number))
-            self.table_flights.setItem(i, 5, QTableWidgetItem(str(f.base_price)))
-            self.table_flights.setItem(i, 6, QTableWidgetItem(f"{sold}/{f.max_tickets}"))
+            
+            item_num = QTableWidgetItem(f.flight_number)
+            item_num.setFlags(item_num.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 0, item_num)
+            
+            item_dep = QTableWidgetItem(f.departure_airport.city.city_name)
+            item_dep.setFlags(item_dep.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 1, item_dep)
+
+            item_arr = QTableWidgetItem(f.arrival_airport.city.city_name)
+            item_arr.setFlags(item_arr.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 2, item_arr)
+
+            item_time = QTableWidgetItem(str(f.departure_datetime))
+            item_time.setFlags(item_time.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 3, item_time)
+
+            item_plane = QTableWidgetItem(f.aircraft.registration_number)
+            item_plane.setFlags(item_plane.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 4, item_plane)
+
+            item_price = QTableWidgetItem(str(f.base_price))
+            item_price.setFlags(item_price.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 5, item_price)
+
+            item_sold = QTableWidgetItem(f"{sold}/{f.max_tickets}")
+            item_sold.setFlags(item_sold.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_flights.setItem(i, 6, item_sold)
             
             combo = QComboBox()
             combo.addItems(["Registration", "Boarding", "Departed", "Delayed", "Arrived"])
@@ -338,9 +360,18 @@ class DispatcherWindow(QWidget):
         self.table_pass.setRowCount(len(tickets))
         for i, t in enumerate(tickets):
             buyer = t.buyer.username if t.buyer else "N/A"
-            self.table_pass.setItem(i, 0, QTableWidgetItem(f"{t.passenger.last_name} {t.passenger.first_name}"))
-            self.table_pass.setItem(i, 1, QTableWidgetItem(t.passenger.passport_series_number))
-            self.table_pass.setItem(i, 2, QTableWidgetItem(buyer))
+            
+            it_name = QTableWidgetItem(f"{t.passenger.last_name} {t.passenger.first_name}")
+            it_name.setFlags(it_name.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_pass.setItem(i, 0, it_name)
+            
+            it_doc = QTableWidgetItem(t.passenger.passport_series_number)
+            it_doc.setFlags(it_doc.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_pass.setItem(i, 1, it_doc)
+            
+            it_buy = QTableWidgetItem(buyer)
+            it_buy.setFlags(it_buy.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            self.table_pass.setItem(i, 2, it_buy)
         session.close()
 
     def export_passengers(self):
