@@ -1,11 +1,12 @@
 import uuid
 import requests
 import bcrypt
+from datetime import datetime
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QMessageBox, QGroupBox, 
                              QLabel, QComboBox, QLineEdit, QTabWidget, QTableWidget, 
-                             QTableWidgetItem, QHeaderView, QFormLayout)
+                             QTableWidgetItem, QHeaderView, QFormLayout, QHBoxLayout, QDateEdit)
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
 from sqlalchemy.exc import IntegrityError
 from src.database.db_connection import SessionLocal
 from src.database.models.business import Ticket, Flight, Passenger
@@ -18,51 +19,72 @@ class ClientWindow(QWidget):
         layout = QVBoxLayout()
         tabs = QTabWidget()
         
-        self.create_booking_tab(tabs)
+        self.create_search_tab(tabs)
         self.create_history_tab(tabs)
         self.create_profile_tab(tabs)
         
         layout.addWidget(tabs)
         self.setLayout(layout)
 
-    def create_booking_tab(self, tabs):
+    def create_search_tab(self, tabs):
         tab = QWidget()
         v = QVBoxLayout()
         
+        h_filter = QHBoxLayout()
+        self.filter_from = QLineEdit(); self.filter_from.setPlaceholderText("From City")
+        self.filter_to = QLineEdit(); self.filter_to.setPlaceholderText("To City")
+        btn_search = QPushButton("Search")
+        btn_search.clicked.connect(self.search_flights)
+        h_filter.addWidget(self.filter_from)
+        h_filter.addWidget(self.filter_to)
+        h_filter.addWidget(btn_search)
+        v.addLayout(h_filter)
+        
         self.cl_combo = QComboBox()
         self.cl_combo.currentIndexChanged.connect(self.load_details)
-        v.addWidget(QLabel("Select Flight:"))
+        v.addWidget(QLabel("Available Flights (Registration only):"))
         v.addWidget(self.cl_combo)
         
-        self.lbl_info = QLabel("Details...")
-        v.addWidget(self.lbl_info)
-        
+        g_det = QGroupBox("Flight Details")
+        f_det = QFormLayout()
+        self.lbl_num = QLabel()
+        self.lbl_route = QLabel()
+        self.lbl_time = QLabel()
+        self.lbl_plane = QLabel()
+        self.lbl_seats = QLabel()
+        self.lbl_price = QLabel()
         self.img = QLabel("No Image")
-        self.img.setFixedSize(400, 200)
+        self.img.setFixedSize(300, 200)
         self.img.setStyleSheet("border: 1px solid gray;")
-        v.addWidget(self.img)
         
-        self.p_name = QLineEdit()
-        self.p_name.setPlaceholderText("Passenger Name")
-        self.p_doc = QLineEdit()
-        self.p_doc.setPlaceholderText("Passport")
+        f_det.addRow("Flight:", self.lbl_num)
+        f_det.addRow("Route:", self.lbl_route)
+        f_det.addRow("Time:", self.lbl_time)
+        f_det.addRow("Aircraft:", self.lbl_plane)
+        f_det.addRow("Seats Left:", self.lbl_seats)
+        f_det.addRow("Price:", self.lbl_price)
+        f_det.addRow("Photo:", self.img)
+        g_det.setLayout(f_det)
+        v.addWidget(g_det)
+        
+        self.p_name = QLineEdit(); self.p_name.setPlaceholderText("Passenger Full Name")
+        self.p_doc = QLineEdit(); self.p_doc.setPlaceholderText("Passport Number")
+        btn_book = QPushButton("Buy Ticket")
+        btn_book.clicked.connect(self.book)
         v.addWidget(self.p_name)
         v.addWidget(self.p_doc)
-        
-        self.btn_book = QPushButton("Book")
-        self.btn_book.clicked.connect(self.book)
-        v.addWidget(self.btn_book)
+        v.addWidget(btn_book)
         
         tab.setLayout(v)
-        tabs.addTab(tab, "Search")
-        self.load_flights()
+        tabs.addTab(tab, "1. Search Flights")
+        self.search_flights()
 
     def create_history_tab(self, tabs):
         tab = QWidget()
         v = QVBoxLayout()
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Ticket", "Flight", "Passenger"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Flight", "From-To", "Time", "Passenger"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         
         btn = QPushButton("Refresh")
@@ -71,16 +93,18 @@ class ClientWindow(QWidget):
         v.addWidget(self.table)
         
         tab.setLayout(v)
-        tabs.addTab(tab, "My Bookings")
+        tabs.addTab(tab, "2. My Bookings")
 
     def create_profile_tab(self, tabs):
         tab = QWidget()
         form = QFormLayout()
         
+        self.prof_user = QLineEdit()
         self.prof_email = QLineEdit()
         self.prof_pass = QLineEdit()
         self.prof_pass.setEchoMode(QLineEdit.EchoMode.Password)
         
+        form.addRow("New Username:", self.prof_user)
         form.addRow("New Email:", self.prof_email)
         form.addRow("New Password:", self.prof_pass)
         
@@ -92,17 +116,38 @@ class ClientWindow(QWidget):
         l.addLayout(form)
         l.addWidget(btn)
         w.setLayout(l)
-        tabs.addTab(w, "Profile")
+        tabs.addTab(w, "3. Profile")
 
-    def load_flights(self):
+    def search_flights(self):
         self.cl_combo.blockSignals(True)
         self.cl_combo.clear()
+        
+        city_from = self.filter_from.text().lower()
+        city_to = self.filter_to.text().lower()
+        
         session = SessionLocal()
-        for f in session.query(Flight).all():
-            self.cl_combo.addItem(f"{f.flight_number}", f.id)
-        session.close()
-        self.cl_combo.blockSignals(False)
+        try:
+            query = session.query(Flight).filter(Flight.status == "Registration")
+            flights = query.all()
+            for f in flights:
+                dep_city = f.departure_airport.city.city_name.lower()
+                arr_city = f.arrival_airport.city.city_name.lower()
+                
+                if city_from and city_from not in dep_city: continue
+                if city_to and city_to not in arr_city: continue
+                
+                self.cl_combo.addItem(f"{f.flight_number} ({f.departure_airport.city.city_name} -> {f.arrival_airport.city.city_name})", f.id)
+        finally:
+            session.close()
+            self.cl_combo.blockSignals(False)
+        
         if self.cl_combo.count() > 0: self.load_details()
+        else: self.clear_details()
+
+    def clear_details(self):
+        self.lbl_num.setText("-")
+        self.lbl_seats.setText("-")
+        self.img.setText("No Flight")
 
     def load_details(self):
         fid = self.cl_combo.currentData()
@@ -110,16 +155,23 @@ class ClientWindow(QWidget):
         session = SessionLocal()
         try:
             f = session.query(Flight).get(fid)
-            self.lbl_info.setText(f"From: {f.departure_airport_id} To: {f.arrival_airport_id}\nPrice: ${f.base_price}")
-            self.btn_book.setText(f"Book (${f.base_price})")
+            seats_sold = len(f.tickets)
+            seats_left = f.max_tickets - seats_sold
+            
+            self.lbl_num.setText(f.flight_number)
+            self.lbl_route.setText(f"{f.departure_airport.city.city_name} -> {f.arrival_airport.city.city_name}")
+            self.lbl_time.setText(str(f.departure_datetime))
+            self.lbl_plane.setText(f"{f.aircraft.aircraft_type.model_name} ({f.aircraft.registration_number})")
+            self.lbl_seats.setText(str(seats_left))
+            self.lbl_price.setText(str(f.base_price))
             
             if f.aircraft.photo_url:
                 try:
-                    d = requests.get(f.aircraft.photo_url, timeout=5).content
+                    d = requests.get(f.aircraft.photo_url, timeout=3).content
                     p = QPixmap()
                     p.loadFromData(d)
-                    self.img.setPixmap(p.scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio))
-                except: self.img.setText("Error")
+                    self.img.setPixmap(p.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatio))
+                except: self.img.setText("Error loading image")
             else: self.img.setText("No Image")
         finally: session.close()
 
@@ -132,18 +184,22 @@ class ClientWindow(QWidget):
         session = SessionLocal()
         try:
             f = session.query(Flight).get(fid)
+            if len(f.tickets) >= f.max_tickets:
+                QMessageBox.warning(self, "Error", "Flight is full!")
+                return
+
             p = session.query(Passenger).filter_by(passport_series_number=d).first()
             if not p:
                 p = Passenger(first_name=n, last_name=n, passport_series_number=d)
-                session.add(p)
-                session.flush()
+                session.add(p); session.flush()
             
-            tn = f"T-{str(uuid.uuid4())[:8].upper()}"
+            tn = f"T-{uuid.uuid4().hex[:8].upper()}"
             t = Ticket(ticket_number=tn, price=f.base_price, passenger_id=p.id, flight_id=fid, buyer_id=self.user_id)
             session.add(t)
             session.commit()
-            QMessageBox.information(self, "Success", "Booked")
+            QMessageBox.information(self, "Success", "Ticket Bought!")
             self.load_history()
+            self.load_details()
         except IntegrityError:
             session.rollback()
             QMessageBox.warning(self, "Error", "Already on flight")
@@ -156,22 +212,30 @@ class ClientWindow(QWidget):
         for i, t in enumerate(ts):
             self.table.setItem(i, 0, QTableWidgetItem(t.ticket_number))
             self.table.setItem(i, 1, QTableWidgetItem(t.flight.flight_number))
-            self.table.setItem(i, 2, QTableWidgetItem(t.passenger.last_name))
+            route = f"{t.flight.departure_airport.city.city_name} -> {t.flight.arrival_airport.city.city_name}"
+            self.table.setItem(i, 2, QTableWidgetItem(route))
+            self.table.setItem(i, 3, QTableWidgetItem(str(t.flight.departure_datetime)))
+            self.table.setItem(i, 4, QTableWidgetItem(t.passenger.last_name))
         session.close()
 
     def update_profile(self):
+        u_name = self.prof_user.text()
         e = self.prof_email.text()
         p = self.prof_pass.text()
-        if not e and not p: return
         
         session = SessionLocal()
         try:
             u = session.get(AppUser, self.user_id)
+            if u_name:
+                if session.query(AppUser).filter_by(username=u_name).first():
+                    QMessageBox.warning(self, "Error", "Username taken")
+                    return
+                u.username = u_name
             if e: u.email = e
             if p: u.password_hash = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
             session.commit()
             QMessageBox.information(self, "Success", "Profile updated")
-        except:
+        except Exception as err:
             session.rollback()
-            QMessageBox.warning(self, "Error", "Update failed")
+            QMessageBox.warning(self, "Error", str(err))
         finally: session.close()
