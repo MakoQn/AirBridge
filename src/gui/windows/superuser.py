@@ -1,8 +1,10 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, 
                              QHBoxLayout, QHeaderView, QMessageBox, QComboBox, QLineEdit, QDialog, 
                              QFormLayout, QAbstractItemView)
+from sqlalchemy.exc import IntegrityError
 from src.database.db_connection import SessionLocal
 from src.database.models.auth import AppUser, Role
+from src.database.models.business import Ticket
 import bcrypt
 
 class CreateStaffDialog(QDialog):
@@ -120,10 +122,30 @@ class SuperuserWindow(QWidget):
     def delete_user(self):
         row = self.table.currentRow()
         if row < 0: return
+        
+        reply = QMessageBox.question(self, 'Confirm', 'Are you sure you want to delete this user?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.No:
+            return
+
         uid = int(self.table.item(row, 0).text())
         session = SessionLocal()
-        u = session.get(AppUser, uid)
-        session.delete(u)
-        session.commit()
-        session.close()
-        self.load_users()
+        try:
+            u = session.get(AppUser, uid)
+            if u:
+                tickets = session.query(Ticket).filter_by(buyer_id=uid).all()
+                for t in tickets:
+                    t.buyer_id = None
+                
+                session.delete(u)
+                session.commit()
+                self.load_users()
+                QMessageBox.information(self, "Success", "User deleted (Tickets preserved)")
+        except IntegrityError:
+            session.rollback()
+            QMessageBox.warning(self, "Error", "Cannot delete user due to strict database constraints.")
+        except Exception as e:
+            session.rollback()
+            QMessageBox.critical(self, "Error", str(e))
+        finally:
+            session.close()
