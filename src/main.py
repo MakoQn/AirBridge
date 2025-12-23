@@ -10,7 +10,7 @@ class MainWindow(QMainWindow):
     def __init__(self, user_data):
         super().__init__()
         self.user = user_data
-        self.setWindowTitle(f"AirBridge - {user_data['role']}")
+        self.setWindowTitle(f"AirBridge")
         self.resize(1000, 700)
         
         if user_data['role'] == "Superuser":
@@ -22,10 +22,12 @@ class MainWindow(QMainWindow):
         elif user_data['role'] == "Client":
             self.setCentralWidget(ClientWindow(user_data['id']))
         else:
-            self.setCentralWidget(QLabel("Unknown Role"))
+            self.setCentralWidget(QLabel("Неизвестная роль"))
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyleSheet("QMessageBox QLabel#qt_msgbox_label { min-width: 300px; }")
+
     login = LoginDialog()
     if login.exec():
         w = MainWindow(login.user_data)

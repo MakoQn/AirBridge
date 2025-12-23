@@ -6,93 +6,121 @@ import bcrypt
 class RegisterDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Client Registration")
-        self.resize(300, 200)
-        
+        self.setWindowTitle("Регистрация")
+        self.setFixedSize(350, 250)
+
         layout = QVBoxLayout()
+
         self.username = QLineEdit()
-        self.username.setPlaceholderText("Username")
+        self.username.setPlaceholderText("Придумайте имя пользователя")
+        layout.addWidget(self.username)
+
         self.email = QLineEdit()
         self.email.setPlaceholderText("Email")
-        self.password = QLineEdit()
-        self.password.setPlaceholderText("Password")
-        self.password.setEchoMode(QLineEdit.EchoMode.Password)
-        
-        layout.addWidget(self.username)
         layout.addWidget(self.email)
+
+        self.password = QLineEdit()
+        self.password.setPlaceholderText("Пароль")
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.password)
-        
-        btn = QPushButton("Register")
-        btn.clicked.connect(self.register)
-        layout.addWidget(btn)
+
+        btn_reg = QPushButton("Зарегистрироваться")
+        btn_reg.clicked.connect(self.register)
+        layout.addWidget(btn_reg)
+
         self.setLayout(layout)
 
     def register(self):
-        u = self.username.text()
-        e = self.email.text()
-        p = self.password.text()
-        if not u or not e or not p: return
-        
+        user = self.username.text()
+        email = self.email.text()
+        pwd = self.password.text()
+
+        if not user or not pwd or not email:
+            QMessageBox.warning(self, "Ошибка", "Все поля обязательны")
+            return
+
         session = SessionLocal()
         try:
-            if session.query(AppUser).filter((AppUser.username == u) | (AppUser.email == e)).first():
-                QMessageBox.warning(self, "Error", "Username or Email taken")
+            if session.query(AppUser).filter((AppUser.username == user) | (AppUser.email == email)).first():
+                QMessageBox.warning(self, "Ошибка", "Имя пользователя или Email уже заняты")
                 return
+
+            hashed = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            hashed = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-            role = session.query(Role).filter_by(role_name="Client").first()
-            user = AppUser(username=u, email=e, password_hash=hashed)
-            user.roles.append(role)
-            session.add(user)
+            client_role = session.query(Role).filter_by(role_name="Client").first()
+            
+            new_user = AppUser(username=user, email=email, password_hash=hashed)
+            new_user.roles.append(client_role)
+            
+            session.add(new_user)
             session.commit()
-            QMessageBox.information(self, "Success", "Registered")
+            
+            QMessageBox.information(self, "Успех", "Аккаунт создан! Теперь можно войти")
             self.accept()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
         finally:
             session.close()
 
 class LoginDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("AirBridge Login")
-        self.resize(300, 150)
+        self.setWindowTitle("AirBridge")
+        self.setFixedSize(350, 200)
         
         layout = QVBoxLayout()
+        
         self.username = QLineEdit()
-        self.username.setPlaceholderText("Username")
+        self.username.setPlaceholderText("Имя пользователя")
+        
         self.password = QLineEdit()
-        self.password.setPlaceholderText("Password")
+        self.password.setPlaceholderText("Пароль")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         
-        btn_login = QPushButton("Login")
-        btn_login.clicked.connect(self.check)
-        btn_reg = QPushButton("Register (Client)")
-        btn_reg.clicked.connect(lambda: RegisterDialog().exec())
+        btn_login = QPushButton("Войти")
+        btn_login.clicked.connect(self.check_login)
+        
+        btn_reg = QPushButton("Регистрация")
+        btn_reg.clicked.connect(self.open_register)
         
         layout.addWidget(self.username)
         layout.addWidget(self.password)
-        h = QHBoxLayout()
-        h.addWidget(btn_login)
-        h.addWidget(btn_reg)
-        layout.addLayout(h)
+        
+        btns = QHBoxLayout()
+        btns.addWidget(btn_login)
+        btns.addWidget(btn_reg)
+        layout.addLayout(btns)
+        
         self.setLayout(layout)
         self.user_data = None
 
-    def check(self):
-        u = self.username.text()
-        p = self.password.text()
+    def check_login(self):
+        login = self.username.text()
+        pwd = self.password.text()
         
         session = SessionLocal()
         try:
-            user = session.query(AppUser).filter_by(username=u).first()
-            if user and user.check_password(p):
+            user = session.query(AppUser).filter_by(username=login).first()
+            if user and user.check_password(pwd):
                 if user.is_blocked:
-                    QMessageBox.warning(self, "Error", "Account Blocked")
+                    QMessageBox.warning(self, "Ошибка", "Аккаунт заблокирован")
                     return
                 
-                role = "Superuser" if user.is_superuser else (user.roles[0].role_name if user.roles else "Client")
-                self.user_data = {"id": user.id, "username": user.username, "role": role}
+                role_name = "Superuser" if user.is_superuser else (user.roles[0].role_name if user.roles else "Client")
+                self.user_data = {
+                    "id": user.id,
+                    "username": user.username,
+                    "role": role_name
+                }
                 self.accept()
             else:
-                QMessageBox.warning(self, "Error", "Invalid credentials")
+                QMessageBox.warning(self, "Ошибка", "Неверный логин или пароль")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Сбой входа: {e}")
         finally:
             session.close()
+
+    def open_register(self):
+        reg_win = RegisterDialog()
+        reg_win.exec()

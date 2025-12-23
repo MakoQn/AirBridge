@@ -1,8 +1,11 @@
 import os
 from datetime import datetime, timedelta
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QMessageBox, QGroupBox, 
-                             QHBoxLayout, QLineEdit, QComboBox, QFileDialog, QTabWidget, 
-                             QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QLabel)
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QMessageBox, QGroupBox, 
+    QHBoxLayout, QLineEdit, QComboBox, QFileDialog, QTabWidget, 
+    QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QLabel,
+    QSpacerItem, QSizePolicy, QAbstractItemView
+)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +16,15 @@ from src.database.models.fleet import Aircraft, AircraftType
 from src.database.models.business import Ticket, Flight, Organization
 from src.database.models.geo import Airport, City
 from src.database.models.reports import FlightDetailsView
+
+STATUS_EN_TO_RU = {
+    "Registration": "Регистрация",
+    "Boarding": "Посадка",
+    "Departed": "Вылетел",
+    "Delayed": "Задержан",
+    "Arrived": "Прибыл"
+}
+STATUS_RU_TO_EN = {v: k for k, v in STATUS_EN_TO_RU.items()}
 
 class DispatcherWindow(QWidget):
     def __init__(self):
@@ -34,14 +46,14 @@ class DispatcherWindow(QWidget):
         tab = QWidget()
         vbox = QVBoxLayout()
         
-        g_air = QGroupBox("Add Airport")
+        g_air = QGroupBox("Добавить аэропорт")
         f_air = QFormLayout()
         self.air_name = QLineEdit()
         self.air_city_combo = QComboBox()
         self.load_cities()
-        f_air.addRow("Name:", self.air_name)
-        f_air.addRow("City:", self.air_city_combo)
-        btn_air = QPushButton("Add Airport")
+        f_air.addRow("Название:", self.air_name)
+        f_air.addRow("Город:", self.air_city_combo)
+        btn_air = QPushButton("Добавить аэропорт")
         btn_air.clicked.connect(self.add_airport)
         v_air = QVBoxLayout()
         v_air.addLayout(f_air)
@@ -49,38 +61,47 @@ class DispatcherWindow(QWidget):
         g_air.setLayout(v_air)
         
         vbox.addWidget(g_air)
+        vbox.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         tab.setLayout(vbox)
-        tabs.addTab(tab, "1. Infrastructure")
+        tabs.addTab(tab, "Инфраструктура")
 
     def create_fleet_tab(self, tabs):
         tab = QWidget()
         vbox = QVBoxLayout()
         
-        g_fleet = QGroupBox("Add Aircraft")
+        g_fleet = QGroupBox("Добавить самолет")
+        v_fleet = QVBoxLayout()
         f_fleet = QFormLayout()
+        
         self.reg_input = QLineEdit()
         self.type_combo = QComboBox()
         self.load_aircraft_types()
         self.photo_path = None
-        self.lbl_photo = QLabel("No photo")
-        self.lbl_photo.setFixedSize(100, 70)
-        self.lbl_photo.setStyleSheet("border: 1px solid #ccc;")
-        btn_p = QPushButton("Select Photo")
+        
+        self.lbl_photo = QLabel("Нет фото")
+        self.lbl_photo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_photo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.lbl_photo.setStyleSheet("border: 1px dashed #ccc;")
+        
+        btn_p = QPushButton("Выбрать фото...")
         btn_p.clicked.connect(self.select_photo)
-        f_fleet.addRow("Reg. Number:", self.reg_input)
-        f_fleet.addRow("Model:", self.type_combo)
-        f_fleet.addRow("Photo:", btn_p)
-        f_fleet.addRow("", self.lbl_photo)
-        btn_fleet = QPushButton("Add Aircraft")
-        btn_fleet.clicked.connect(self.add_aircraft)
-        v_fleet = QVBoxLayout()
+        
+        f_fleet.addRow("Рег. номер:", self.reg_input)
+        f_fleet.addRow("Модель:", self.type_combo)
+        f_fleet.addRow("Фото:", btn_p)
+        
         v_fleet.addLayout(f_fleet)
-        v_fleet.addWidget(btn_fleet)
+        v_fleet.addWidget(self.lbl_photo)
+        
+        btn_add = QPushButton("Добавить самолет")
+        btn_add.clicked.connect(self.add_aircraft)
+        
+        v_fleet.addWidget(btn_add)
         g_fleet.setLayout(v_fleet)
         
         vbox.addWidget(g_fleet)
         tab.setLayout(vbox)
-        tabs.addTab(tab, "2. Fleet")
+        tabs.addTab(tab, "Флот")
 
     def create_schedule_tab(self, tabs):
         tab = QWidget()
@@ -101,41 +122,49 @@ class DispatcherWindow(QWidget):
         self.fl_num = QLineEdit()
         self.fl_price = QLineEdit()
         self.fl_max = QLineEdit()
-        self.fl_max.setPlaceholderText("100")
+        self.fl_max.setPlaceholderText("")
         
-        form.addRow("From:", self.fl_from)
-        form.addRow("To:", self.fl_to)
-        form.addRow("Time:", self.fl_time)
-        form.addRow("Aircraft:", self.fl_plane)
-        form.addRow("Flight Number:", self.fl_num)
-        form.addRow("Price:", self.fl_price)
-        form.addRow("Max Seats:", self.fl_max)
+        self.fl_org = QComboBox()
+        self.load_organizations_combo()
         
-        btn = QPushButton("Create Flight")
+        form.addRow("Откуда:", self.fl_from)
+        form.addRow("Куда:", self.fl_to)
+        form.addRow("Время вылета:", self.fl_time)
+        form.addRow("Оператор:", self.fl_org)
+        form.addRow("Самолет:", self.fl_plane)
+        form.addRow("Номер рейса:", self.fl_num)
+        form.addRow("Цена:", self.fl_price)
+        form.addRow("Мест всего:", self.fl_max)
+        
+        btn = QPushButton("Создать Рейс")
         btn.clicked.connect(self.create_flight)
         
         vbox.addLayout(form)
         vbox.addWidget(btn)
+        vbox.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         tab.setLayout(vbox)
-        tabs.addTab(tab, "3. Schedule")
+        tabs.addTab(tab, "Расписание")
 
     def create_manage_flights_tab(self, tabs):
         tab = QWidget()
         vbox = QVBoxLayout()
         
         self.table_flights = QTableWidget()
-        cols = ["Number", "From", "To", "Time", "Plane", "Price", "Sold", "Status"]
+        cols = ["Номер", "Откуда", "Куда", "Время вылета", "Самолет", "Цена", "Места", "Статус"]
         self.table_flights.setColumnCount(len(cols))
         self.table_flights.setHorizontalHeaderLabels(cols)
         self.table_flights.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_flights.verticalHeader().setVisible(False)
+        self.table_flights.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table_flights.setSortingEnabled(True)
         
-        btn_ref = QPushButton("Refresh List")
+        btn_ref = QPushButton("Обновить список")
         btn_ref.clicked.connect(self.load_flights_table)
         
         vbox.addWidget(btn_ref)
         vbox.addWidget(self.table_flights)
         tab.setLayout(vbox)
-        tabs.addTab(tab, "4. Flight Control")
+        tabs.addTab(tab, "Управление рейсами")
 
     def create_flight_report_tab(self, tabs):
         tab = QWidget()
@@ -146,37 +175,39 @@ class DispatcherWindow(QWidget):
         
         self.table_pass = QTableWidget()
         self.table_pass.setColumnCount(3)
-        self.table_pass.setHorizontalHeaderLabels(["Passenger Name", "Passport", "Buyer (Account)"])
+        self.table_pass.setHorizontalHeaderLabels(["Пассажир", "Паспорт", "Покупатель"])
         self.table_pass.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_pass.verticalHeader().setVisible(False)
+        self.table_pass.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
-        btn_csv = QPushButton("Export to CSV")
+        btn_csv = QPushButton("Экспорт в CSV")
         btn_csv.clicked.connect(self.export_passengers)
         
-        btn_ref = QPushButton("Refresh Flights List")
+        btn_ref = QPushButton("Обновить список рейсов")
         btn_ref.clicked.connect(self.update_report_combo)
 
-        vbox.addWidget(QLabel("Select Flight:"))
+        vbox.addWidget(QLabel("Выберите рейс:"))
         vbox.addWidget(self.rep_flight_combo)
         vbox.addWidget(btn_ref)
         vbox.addWidget(self.table_pass)
         vbox.addWidget(btn_csv)
         tab.setLayout(vbox)
-        tabs.addTab(tab, "5. Passenger Lists")
+        tabs.addTab(tab, "Список пассажиров")
         self.update_report_combo()
 
     def create_analytics_tab(self, tabs):
         tab = QWidget()
         vbox = QVBoxLayout()
         
-        self.lbl_revenue = QLabel("Click Show to see data")
+        self.lbl_revenue = QLabel("Нажмите 'Показать выручку'")
         
-        btn_show = QPushButton("Show Revenue")
+        btn_show = QPushButton("Показать выручку")
         btn_show.clicked.connect(self.show_analytics)
         
         h = QHBoxLayout()
-        btn_csv = QPushButton("Export Revenue CSV")
+        btn_csv = QPushButton("Экспорт в CSV")
         btn_csv.clicked.connect(self.export_csv)
-        btn_json = QPushButton("Export Revenue JSON")
+        btn_json = QPushButton("Экспорт в JSON")
         btn_json.clicked.connect(self.export_json)
         h.addWidget(btn_csv)
         h.addWidget(btn_json)
@@ -184,8 +215,9 @@ class DispatcherWindow(QWidget):
         vbox.addWidget(self.lbl_revenue)
         vbox.addWidget(btn_show)
         vbox.addLayout(h)
+        vbox.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         tab.setLayout(vbox)
-        tabs.addTab(tab, "6. Finance")
+        tabs.addTab(tab, "Финансы")
 
     def load_cities(self):
         session = SessionLocal()
@@ -201,12 +233,13 @@ class DispatcherWindow(QWidget):
         try:
             session.add(Airport(airport_name=name, city_id=self.air_city_combo.currentData()))
             session.commit()
-            QMessageBox.information(self, "Success", "Added")
+            QMessageBox.information(self, "Успех", "Аэропорт добавлен")
             self.load_airports()
         except IntegrityError:
             session.rollback()
-            QMessageBox.warning(self, "Error", "Already exists")
-        finally: session.close()
+            QMessageBox.warning(self, "Ошибка", "Уже существует")
+        finally:
+            session.close()
 
     def load_aircraft_types(self):
         session = SessionLocal()
@@ -216,10 +249,10 @@ class DispatcherWindow(QWidget):
         session.close()
 
     def select_photo(self):
-        f, _ = QFileDialog.getOpenFileName(self, "Image", "", "Images (*.png *.jpg)")
+        f, _ = QFileDialog.getOpenFileName(self, "Выбрать фото", "", "Images (*.png *.jpg)")
         if f:
             self.photo_path = f
-            self.lbl_photo.setPixmap(QPixmap(f).scaled(100, 70))
+            self.lbl_photo.setPixmap(QPixmap(f).scaled(self.lbl_photo.size(), Qt.AspectRatioMode.KeepAspectRatio))
 
     def add_aircraft(self):
         reg = self.reg_input.text()
@@ -233,12 +266,13 @@ class DispatcherWindow(QWidget):
         try:
             session.add(Aircraft(registration_number=reg, aircraft_type_id=self.type_combo.currentData(), photo_url=url))
             session.commit()
-            QMessageBox.information(self, "Success", "Added")
+            QMessageBox.information(self, "Успех", "Самолет добавлен")
             self.load_planes()
         except IntegrityError:
             session.rollback()
-            QMessageBox.warning(self, "Error", "Exists")
-        finally: session.close()
+            QMessageBox.warning(self, "Ошибка", "Уже существует")
+        finally:
+            session.close()
 
     def load_airports(self):
         session = SessionLocal()
@@ -263,15 +297,15 @@ class DispatcherWindow(QWidget):
         mx = self.fl_max.text()
         dep = self.fl_from.currentData()
         arr = self.fl_to.currentData()
+        oid = self.fl_org.currentData()
         
         if dep == arr:
-            QMessageBox.warning(self, "Error", "Same airports")
+            QMessageBox.warning(self, "Ошибка", "Аэропорты должны быть разными")
             return
         
         session = SessionLocal()
         try:
             dt = datetime.strptime(self.fl_time.text(), "%Y-%m-%d %H:%M")
-            org = session.query(Organization).first()
             f = Flight(
                 flight_number=num,
                 base_price=float(pr),
@@ -281,22 +315,24 @@ class DispatcherWindow(QWidget):
                 departure_airport_id=dep,
                 arrival_airport_id=arr,
                 aircraft_id=self.fl_plane.currentData(),
-                organization_id=org.id,
+                organization_id=oid,
                 status="Registration"
             )
             session.add(f)
             session.commit()
-            QMessageBox.information(self, "Success", "Flight Created")
+            QMessageBox.information(self, "Успех", "Рейс создан")
             self.load_flights_table()
             self.update_report_combo()
         except ValueError:
-            QMessageBox.warning(self, "Error", "Invalid date format")
+            QMessageBox.warning(self, "Ошибка", "Неверный формат даты")
         except IntegrityError:
             session.rollback()
-            QMessageBox.warning(self, "Error", "Flight number exists")
-        finally: session.close()
+            QMessageBox.warning(self, "Ошибка", "Номер рейса занят")
+        finally:
+            session.close()
 
     def load_flights_table(self):
+        self.table_flights.setSortingEnabled(False)
         session = SessionLocal()
         views = session.query(FlightDetailsView).all()
         
@@ -333,17 +369,23 @@ class DispatcherWindow(QWidget):
             self.table_flights.setItem(i, 6, item_sold)
             
             combo = QComboBox()
-            combo.addItems(["Registration", "Boarding", "Departed", "Delayed", "Arrived"])
-            combo.setCurrentText(v.status)
+            combo.addItems(["Регистрация", "Посадка", "Вылетел", "Задержан", "Прибыл"])
+            
+            current_status_db = v.status
+            current_status_ui = STATUS_EN_TO_RU.get(current_status_db, current_status_db)
+            combo.setCurrentText(current_status_ui)
+            
             combo.currentTextChanged.connect(lambda text, fid=v.flight_id: self.change_status(fid, text))
             self.table_flights.setCellWidget(i, 7, combo)
         session.close()
+        self.table_flights.setSortingEnabled(True)
 
-    def change_status(self, fid, status):
+    def change_status(self, fid, status_ui):
         session = SessionLocal()
         f = session.get(Flight, fid)
         if f:
-            f.status = status
+            status_db = STATUS_RU_TO_EN.get(status_ui, status_ui)
+            f.status = status_db
             session.commit()
         session.close()
 
@@ -376,19 +418,28 @@ class DispatcherWindow(QWidget):
             self.table_pass.setItem(i, 2, it_buy)
         session.close()
 
+    def load_organizations_combo(self):
+        session = SessionLocal()
+        self.fl_org.clear()
+        for org in session.query(Organization).all():
+            self.fl_org.addItem(org.organization_name, org.id)
+        session.close()
+
     def export_passengers(self):
         fid = self.rep_flight_combo.currentData()
         if not fid: return
         path = AnalyticsService().export_flight_passengers_csv(fid)
-        if path: QMessageBox.information(self, "OK", f"Saved to {path}")
+        if path: QMessageBox.information(self, "OK", f"Сохранено: {path}")
 
     def show_analytics(self):
         s = AnalyticsService().get_airline_revenue_stats()
-        text = "\n".join([f"{r[0]}: {r[1]} tkt, ${r[2]}" for r in s]) if s else "No data"
+        text = "\n".join([f"{r[0]}: {r[1]} билетов, ${r[2]}" for r in s]) if s else "Нет данных"
         self.lbl_revenue.setText(text)
 
     def export_json(self):
-        if AnalyticsService().export_stats_json(): QMessageBox.information(self, "OK", "JSON Saved")
+        if AnalyticsService().export_stats_json():
+            QMessageBox.information(self, "OK", "JSON Сохранен")
 
     def export_csv(self):
-        if AnalyticsService().export_stats_csv(): QMessageBox.information(self, "OK", "CSV Saved")
+        if AnalyticsService().export_stats_csv():
+            QMessageBox.information(self, "OK", "CSV Сохранен")

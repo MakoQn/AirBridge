@@ -7,23 +7,32 @@ from src.database.models.auth import AppUser, Role
 from src.database.models.business import Ticket
 import bcrypt
 
+ROLE_EN_TO_RU = {
+    "Administrator": "Администратор",
+    "Dispatcher": "Диспетчер",
+    "Client": "Клиент",
+    "Superuser": "Суперпользователь"
+}
+
+ROLE_RU_TO_EN = {v: k for k, v in ROLE_EN_TO_RU.items()}
+
 class CreateStaffDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Create Staff")
+        self.setWindowTitle("Создание сотрудника")
         self.layout = QFormLayout()
         
         self.username = QLineEdit()
         self.role = QComboBox()
-        self.role.addItems(["Administrator", "Dispatcher"])
+        self.role.addItems(["Администратор", "Диспетчер"])
         self.password = QLineEdit()
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         
-        self.layout.addRow("Username:", self.username)
-        self.layout.addRow("Role:", self.role)
-        self.layout.addRow("Password:", self.password)
+        self.layout.addRow("Имя пользователя:", self.username)
+        self.layout.addRow("Роль:", self.role)
+        self.layout.addRow("Пароль:", self.password)
         
-        btn = QPushButton("Create")
+        btn = QPushButton("Создать")
         btn.clicked.connect(self.accept)
         self.layout.addWidget(btn)
         self.setLayout(self.layout)
@@ -35,7 +44,7 @@ class SuperuserWindow(QWidget):
         
         self.table = QTableWidget()
         self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["ID", "Username", "Role", "Status"])
+        self.table.setHorizontalHeaderLabels(["ID", "Имя пользователя", "Роль", "Статус"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         
         self.table.verticalHeader().setVisible(False)
@@ -46,13 +55,13 @@ class SuperuserWindow(QWidget):
         layout.addWidget(self.table)
         
         h = QHBoxLayout()
-        btn_add = QPushButton("Create Staff")
+        btn_add = QPushButton("Создать сотрудника")
         btn_add.clicked.connect(self.create_staff)
-        btn_block = QPushButton("Block/Unblock")
+        btn_block = QPushButton("Заблокировать/Разблокировать")
         btn_block.clicked.connect(self.toggle_block)
-        btn_del = QPushButton("Delete")
+        btn_del = QPushButton("Удалить")
         btn_del.clicked.connect(self.delete_user)
-        btn_ref = QPushButton("Refresh")
+        btn_ref = QPushButton("Обновить")
         btn_ref.clicked.connect(self.load_users)
         
         h.addWidget(btn_add)
@@ -71,15 +80,17 @@ class SuperuserWindow(QWidget):
             users = session.query(AppUser).filter(AppUser.is_superuser == False).order_by(AppUser.id).all()
             self.table.setRowCount(len(users))
             for i, u in enumerate(users):
-                role = u.roles[0].role_name if u.roles else "None"
-                status = "Blocked" if u.is_blocked else "Active"
+                role_db = u.roles[0].role_name if u.roles else "Client"
+                role_display = ROLE_EN_TO_RU.get(role_db, role_db)
+                
+                status = "Заблокирован" if u.is_blocked else "Активен"
                 
                 item_id = QTableWidgetItem()
                 item_id.setData(0, u.id)
                 
                 self.table.setItem(i, 0, item_id)
                 self.table.setItem(i, 1, QTableWidgetItem(u.username))
-                self.table.setItem(i, 2, QTableWidgetItem(role))
+                self.table.setItem(i, 2, QTableWidgetItem(role_display))
                 self.table.setItem(i, 3, QTableWidgetItem(status))
         finally:
             session.close()
@@ -90,16 +101,18 @@ class SuperuserWindow(QWidget):
         if d.exec():
             u = d.username.text()
             p = d.password.text()
-            r_name = d.role.currentText()
+            r_name_ru = d.role.currentText()
+            r_name_en = ROLE_RU_TO_EN.get(r_name_ru)
+            
             if not u or not p: return
             
             session = SessionLocal()
             try:
                 if session.query(AppUser).filter_by(username=u).first():
-                    QMessageBox.warning(self, "Error", "Exists")
+                    QMessageBox.warning(self, "Ошибка", "Пользователь уже существует")
                     return
                 hashed = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-                role = session.query(Role).filter_by(role_name=r_name).first()
+                role = session.query(Role).filter_by(role_name=r_name_en).first()
                 user = AppUser(username=u, email=f"{u}@staff.loc", password_hash=hashed)
                 user.roles.append(role)
                 session.add(user)
@@ -123,7 +136,7 @@ class SuperuserWindow(QWidget):
         row = self.table.currentRow()
         if row < 0: return
         
-        reply = QMessageBox.question(self, 'Confirm', 'Are you sure you want to delete this user?',
+        reply = QMessageBox.question(self, 'Подтверждение', 'Удалить этого пользователя?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.No:
             return
@@ -140,12 +153,12 @@ class SuperuserWindow(QWidget):
                 session.delete(u)
                 session.commit()
                 self.load_users()
-                QMessageBox.information(self, "Success", "User deleted (Tickets preserved)")
+                QMessageBox.information(self, "Успех", "Пользователь удален")
         except IntegrityError:
             session.rollback()
-            QMessageBox.warning(self, "Error", "Cannot delete user due to strict database constraints.")
+            QMessageBox.warning(self, "Ошибка", "Невозможно удалить пользователя из-за связей в базе данных")
         except Exception as e:
             session.rollback()
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Ошибка", str(e))
         finally:
             session.close()
