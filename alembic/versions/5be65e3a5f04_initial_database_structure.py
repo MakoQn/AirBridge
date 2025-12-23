@@ -55,16 +55,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('country_name')
     )
     op.create_index(op.f('ix_country_id'), 'country', ['id'], unique=False)
-    op.create_table('flight_details_view',
-    sa.Column('flight_id', sa.Integer(), nullable=False),
-    sa.Column('flight_number', sa.String(), nullable=True),
-    sa.Column('departure_city', sa.String(), nullable=True),
-    sa.Column('arrival_city', sa.String(), nullable=True),
-    sa.Column('airline_name', sa.String(), nullable=True),
-    sa.Column('departure_datetime', sa.DateTime(), nullable=True),
-    sa.PrimaryKeyConstraint('flight_id'),
-    info={'is_view': True}
-    )
     op.create_table('organization',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('organization_name', sa.String(), nullable=False),
@@ -216,7 +206,6 @@ def downgrade() -> None:
     op.drop_table('role')
     op.drop_table('passenger')
     op.drop_table('organization')
-    op.drop_table('flight_details_view')
     op.drop_index(op.f('ix_country_id'), table_name='country')
     op.drop_table('country')
     op.drop_table('cargo_type')

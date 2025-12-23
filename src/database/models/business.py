@@ -56,34 +56,8 @@ class Ticket(Base):
     
     passenger_id = Column(Integer, ForeignKey("passenger.id"), nullable=False)
     flight_id = Column(Integer, ForeignKey("flight.id"), nullable=False)
-    seat_id = Column(Integer, ForeignKey("seat.id"), nullable=True)
     buyer_id = Column(Integer, ForeignKey("app_user.id"), nullable=True)
 
     flight = relationship("Flight", back_populates="tickets")
     passenger = relationship("Passenger")
     buyer = relationship("src.database.models.auth.AppUser")
-    
-    __table_args__ = (UniqueConstraint('flight_id', 'seat_id', name='uq_flight_seat_ticket'),)
-
-class CargoType(Base):
-    __tablename__ = "cargo_type"
-
-    id = Column(Integer, primary_key=True)
-    cargo_type_name = Column(String, unique=True, nullable=False)
-
-class TransportFeature(Base):
-    __tablename__ = "transport_feature"
-
-    id = Column(Integer, primary_key=True)
-    feature_name = Column(String, unique=True, nullable=False)
-    description = Column(String)
-
-class Cargo(Base):
-    __tablename__ = "cargo"
-
-    id = Column(Integer, primary_key=True)
-    mass = Column(DECIMAL(10, 2), nullable=False)
-    cargo_type_id = Column(Integer, ForeignKey("cargo_type.id"), nullable=False)
-    transport_feature_id = Column(Integer, ForeignKey("transport_feature.id"), nullable=True)
-    passenger_id = Column(Integer, ForeignKey("passenger.id"), nullable=True)
-    flight_id = Column(Integer, ForeignKey("flight.id"), nullable=True)
